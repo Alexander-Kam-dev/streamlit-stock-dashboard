@@ -86,7 +86,43 @@ def fetch_stock_data_with_timeframe(ticker, timeframe='1D', period='2y'):
     return resample_data_to_timeframe(data, timeframe)
 
 def validate_ticker(ticker):
-    """Validate if ticker symbol is reasonable"""
+    """Validate if ticker symbol is reasonable (basic format check)"""
     if not ticker or len(ticker) > 10:
         return False
     return ticker.replace('.', '').replace('-', '').isalnum()
+
+def validate_ticker_exists(ticker):
+    """Validate if ticker actually exists by trying to fetch minimal data"""
+    if not validate_ticker(ticker):
+        return False
+    
+    try:
+        # Try to fetch just 1 day of data to check if ticker exists
+        data = yf.download(ticker, period="1d", progress=False)
+        return not data.empty
+    except:
+        return False
+
+def get_current_price(ticker):
+    """Get the current/latest price for a stock ticker"""
+    try:
+        # Fetch latest price using yfinance Ticker object
+        stock = yf.Ticker(ticker)
+        info = stock.history(period="1d", interval="1d")
+        
+        if not info.empty:
+            # Get the most recent close price
+            latest_price = info['Close'].iloc[-1]
+            return latest_price
+        else:
+            return None
+    except:
+        return None
+
+def get_watchlist_prices(tickers):
+    """Get current prices for a list of tickers efficiently"""
+    prices = {}
+    for ticker in tickers:
+        price = get_current_price(ticker)
+        prices[ticker] = price
+    return prices
