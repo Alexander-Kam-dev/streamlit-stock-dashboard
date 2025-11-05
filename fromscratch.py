@@ -6,14 +6,328 @@ from indicators import add_all_indicators
 from chart_builder import create_line_chart_with_indicators, create_candlestick_chart_with_indicators
 from utils import display_technical_summary, display_data_info
 
+
 # Configure page
 st.set_page_config(
     page_title="Modular Finance Dashboard",
     layout="wide"
 )
 
+def get_theme_colors(theme="light"):
+    """Get color scheme for charts based on theme"""
+    if theme == "dark":
+        return {
+            'background': '#0E1117',
+            'paper': '#262730',
+            'text': '#FAFAFA',
+            'grid': '#404040',
+            'primary': '#FF6B35',
+            'secondary': "#000000",
+            'success': '#28a745',
+            'danger': '#dc3545'
+        }
+    else:
+        return {
+            'background': '#FFFFFF',
+            'paper': '#FFFFFF', 
+            'text': '#262730',
+            'grid': '#E0E0E0',
+            'primary': '#FF6B35',
+            'secondary': '#00D4AA',
+            'success': '#28a745',
+            'danger': '#dc3545'
+        }
+
+def apply_theme_css(theme="light"):
+    """Apply custom CSS styling based on theme"""
+    
+    if theme == "dark":
+        # Dark theme CSS
+        st.markdown("""
+        <style>
+        /* Main app background */
+        .stApp {
+            background-color: #0E1117;
+            color: #FAFAFA !important;
+        }
+                            
+        /* Hide Streamlit Main Menu & Toolbar completely */
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        
+        /* Sidebar styling - make it black with white text */
+        .css-1d391kg, 
+        .css-1rs6os,
+        .css-17eq0hr,
+        .css-16huue1,
+        .css-1lcbmhc,
+        .stSidebar,
+        .stSidebar > div,
+        [data-testid="stSidebar"],
+        [data-testid="stSidebar"] > div {
+            background-color: #000000 !important;
+        }
+        
+        /* All sidebar text elements - comprehensive targeting */
+        .css-1d391kg *, 
+        .css-1rs6os *,
+        .css-17eq0hr *,
+        .css-16huue1 *,
+        .css-1lcbmhc *,
+        .stSidebar *,
+        [data-testid="stSidebar"] *,
+        .css-1d391kg .stMarkdown, 
+        .css-1d391kg .stText, 
+        .css-1d391kg p, 
+        .css-1d391kg span, 
+        .css-1d391kg div,
+        .css-1d391kg h1,
+        .css-1d391kg h2,
+        .css-1d391kg h3,
+        .css-1d391kg h4,
+        .css-1d391kg label,
+        .stSidebar .stMarkdown,
+        .stSidebar .stText,
+        .stSidebar p,
+        .stSidebar span,
+        .stSidebar div,
+        .stSidebar h1,
+        .stSidebar h2,
+        .stSidebar h3,
+        .stSidebar h4,
+        .stSidebar label {
+            color: #FFFFFF !important;
+        }
+        
+        /* Sidebar input fields */
+        .css-1d391kg input,
+        .stSidebar input,
+        [data-testid="stSidebar"] input {
+            background-color: #333333 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #555555 !important;
+        }
+        
+        /* Sidebar select boxes */
+        .css-1d391kg .stSelectbox > div > div,
+        .stSidebar .stSelectbox > div > div,
+        [data-testid="stSidebar"] .stSelectbox > div > div {
+            background-color: #333333 !important;
+            color: #FFFFFF !important;
+        }
+        
+        /* Sidebar checkbox labels */
+        .stSidebar .stCheckbox label,
+        .stSidebar .stCheckbox span,
+        [data-testid="stSidebar"] .stCheckbox label,
+        [data-testid="stSidebar"] .stCheckbox span {
+            color: #FFFFFF !important;
+        }
+        
+        /* Sidebar slider labels and text */
+        .stSidebar .stSlider label,
+        .stSidebar .stSlider span,
+        .stSidebar .stSlider div,
+        [data-testid="stSidebar"] .stSlider label,
+        [data-testid="stSidebar"] .stSlider span,
+        [data-testid="stSidebar"] .stSlider div {
+            color: #FFFFFF !important;
+        }
+        
+        /* Metric containers */
+        [data-testid="metric-container"] {
+            background-color: #262730;
+            border: 1px solid #404040;
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        
+        
+        /* Buttons - More specific targeting */
+        .stButton > button,
+        .stButton button,
+        button[data-testid="baseButton-secondary"] {
+            background-color: #000000 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #333333 !important;
+            border-radius: 0.5rem;
+            transition: all 0.3s;
+        }
+
+        .stButton > button:hover,
+        .stButton button:hover,
+        button[data-testid="baseButton-secondary"]:hover {
+            background-color: #1a1a1a !important;
+            color: #FFFFFF !important;
+            transform: translateY(-1px);
+        }
+                    
+        /* Primary buttons */
+        .stButton > button[kind="primary"] {
+            background-color: #00D4AA;
+            color: #0E1117;
+            font-weight: bold;
+        }
+        
+        .stButton > button[kind="primary"]:hover {
+            background-color: #00B894;
+        }
+        
+        /* Secondary buttons (watchlist tickers, etc.) - black with white text */
+        .stButton > button[data-testid*="secondary"] {
+            background-color: #000000 !important;
+            color: #FFFFFF !important;
+            border: 1px solid #333333;
+        }
+        
+        .stButton > button[kind="secondary"]:hover {
+            background-color: #1a1a1a !important;
+            color: #FFFFFF !important;
+            transform: translateY(-1px);
+        }
+        
+        /* Custom containers */
+        .theme-container {
+            background-color: #1E1E1E;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 1px solid #404040;
+            margin: 1rem 0;
+        }
+        
+        /* Watchlist specific styling in dark mode */
+        .theme-container .stMarkdown,
+        .theme-container .stText,
+        .theme-container p,
+        .theme-container span,
+        .theme-container div {
+            color: #FFFFFF !important;
+        }
+        
+        /* Header styling */
+        .dashboard-header {
+            background: linear-gradient(90deg, #FF6B35 0%, #00D4AA 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .dashboard-header h1 {
+            color: white;
+            margin: 0;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+    
+    else:
+        # Light theme CSS
+        st.markdown("""
+        <style>
+        /* Main app background */
+        .stApp {
+            background-color: #FFFFFF;
+            color: #262730;
+        }
+        
+        /* Sidebar styling */
+        .css-1d391kg {
+            background-color: #F0F2F6;
+        }
+        
+        /* Metric containers */
+        [data-testid="metric-container"] {
+            background-color: #FFFFFF;
+            border: 1px solid #E0E0E0;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        /* Buttons */
+        .stButton > button {
+            background-color: #FF6B35;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            transition: all 0.3s;
+        }
+        
+        .stButton > button:hover {
+            background-color: #E55A2B;
+            transform: translateY(-2px);
+        }
+        
+        /* Primary buttons */
+        .stButton > button[kind="primary"] {
+            background-color: #00D4AA;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .stButton > button[kind="primary"]:hover {
+            background-color: #00B894;
+        }
+        
+        /* Secondary buttons (watchlist tickers, etc.) */
+        .stButton > button[kind="secondary"] {
+            background-color: #E9ECEF;
+            color: #262730 !important;
+            border: 1px solid #CED4DA;
+        }
+        
+        .stButton > button[kind="secondary"]:hover {
+            background-color: #DEE2E6;
+            color: #1C1E21 !important;
+            transform: translateY(-1px);
+        }
+        
+        /* Custom containers */
+        .theme-container {
+            background-color: #F8F9FA;
+            padding: 1rem;
+            border-radius: 10px;
+            border: 1px solid #E0E0E0;
+            margin: 1rem 0;
+        }
+        
+        /* Header styling */
+        .dashboard-header {
+            background: linear-gradient(90deg, #FF6B35 0%, #00D4AA 100%);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            text-align: center;
+        }
+        
+        .dashboard-header h1 {
+            color: white;
+            margin: 0;
+            font-weight: 700;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+
 def main():
-    st.title("📈 Professional Finance Dashboard")
+    # Initialize theme in session state
+    if 'theme' not in st.session_state:
+        st.session_state.theme = 'light'
+    
+    # Apply theme CSS
+    apply_theme_css(st.session_state.theme)
+    
+    # Custom header with gradient styling
+    st.markdown("""
+    <div class="dashboard-header">
+        <h1>📈 Professional Finance Dashboard</h1>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Initialize control variables
     timeframe_changed = False
@@ -23,6 +337,32 @@ def main():
     # ============================================
     with st.sidebar:
         st.header("🎛️ Dashboard Controls")
+        
+        # Theme Toggle Section
+        st.subheader("🎨 Theme")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if st.button("🌞 Light", use_container_width=True, 
+                        type="primary" if st.session_state.theme == 'light' else "secondary",
+                        help="Switch to light theme"):
+                st.session_state.theme = 'light'
+                st.rerun()
+        
+        with col2:
+            if st.button("🌙 Dark", use_container_width=True,
+                        type="primary" if st.session_state.theme == 'dark' else "secondary",
+                        help="Switch to dark theme"):
+                st.session_state.theme = 'dark'
+                st.rerun()
+        
+        # Theme status indicator with enhanced styling
+        theme_emoji = "🌞" if st.session_state.theme == 'light' else "🌙"
+        if st.session_state.theme == 'dark':
+            st.success(f"{theme_emoji} **Active:** {st.session_state.theme.title()} Mode")
+        else:
+            st.info(f"{theme_emoji} **Active:** {st.session_state.theme.title()} Mode")
+        
         st.markdown("---")
         
         # Stock Selection
@@ -110,14 +450,17 @@ def main():
         bb_period = st.slider("Bollinger Bands Period", 10, 50, 20, 5, help="Bollinger Bands period")
         bb_std = st.slider("Bollinger Bands Std Dev", 1.0, 3.0, 2.0, 0.1, help="Standard deviation multiplier")
     
+
+    # Create main layout: Charts (left) + Watchlist (right)
+    main_col, watchlist_col = st.columns([3, 1])
+
     # ============================================
     # MAIN CONTENT AREA WITH WATCHLIST
     # ============================================
     
-    # Create main layout: Charts (left) + Watchlist (right)
-    main_col, watchlist_col = st.columns([3, 1])
     
     with watchlist_col:
+        st.markdown('<div class="theme-container">', unsafe_allow_html=True)
         st.subheader("📋 Watchlist")
         
         # Initialize watchlist in session state
@@ -170,21 +513,25 @@ def main():
             prices = st.session_state['watchlist_prices']
             
             for i, stock in enumerate(st.session_state['watchlist']):
-                col1, col2, col3 = st.columns([2, 1, 1])
-                with col1:
-                    # Make stock clickable to load it
-                    if st.button(f"📊 {stock}", key=f"load_{stock}", help=f"Load {stock} chart"):
-                        # Update ticker and fetch data
+                # Create clean row for each stock with proper alignment
+                ticker_col, price_col, remove_col = st.columns([2, 1, 1])
+                
+                with ticker_col:
+                    # Stock ticker button
+                    if st.button(f"📊 {stock}", key=f"load_{stock}", help=f"Load {stock} chart", 
+                                type="secondary", use_container_width=True):
                         st.session_state['selected_ticker'] = stock
                         st.rerun()
-                with col2:
-                    # Display real price
+                
+                with price_col:
+                    # Price display - aligned properly
                     price = prices.get(stock)
                     if price is not None:
                         st.write(f"${price:.2f}")
                     else:
                         st.write("$---.--")
-                with col3:
+                
+                with remove_col:
                     # Remove button
                     if st.button("❌", key=f"remove_{stock}", help=f"Remove {stock}"):
                         st.session_state['watchlist'].remove(stock)
@@ -201,13 +548,15 @@ def main():
         cols = st.columns(2)
         for i, stock in enumerate(popular_stocks):
             with cols[i % 2]:
-                if st.button(stock, key=f"quick_{stock}", use_container_width=True):
+                if st.button(stock, key=f"quick_{stock}", use_container_width=True, type="secondary"):
                     if stock not in st.session_state['watchlist']:
                         st.session_state['watchlist'].append(stock)
                         # Clear price cache so it refreshes with new stock
                         if 'watchlist_prices' in st.session_state:
                             del st.session_state['watchlist_prices']
                         st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)  # Close watchlist container
     
     # Main chart area (left side)
     with main_col:
@@ -274,7 +623,11 @@ def main():
             ticker = st.session_state['current_ticker']
             
             # Main chart area (TOP PRIORITY - show charts first)
+            st.markdown('<div class="theme-container">', unsafe_allow_html=True)
             st.write("## 📈 Interactive Charts")
+            
+            # Get theme colors for chart styling
+            theme_colors = get_theme_colors(st.session_state.theme)
             
             # Use current parameters from sidebar (for instant updates)
             current_indicator_params = st.session_state.get('indicator_params', indicator_params)
@@ -285,7 +638,17 @@ def main():
             else:
                 fig = create_candlestick_chart_with_indicators(data, ticker, current_indicator_params, current_display_options)
             
+            # Apply theme styling to the chart
+            fig.update_layout(
+                plot_bgcolor=theme_colors['background'],
+                paper_bgcolor=theme_colors['paper'],
+                font=dict(color=theme_colors['text']),
+                xaxis=dict(gridcolor=theme_colors['grid']),
+                yaxis=dict(gridcolor=theme_colors['grid'])
+            )
+            
             st.plotly_chart(fig, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
             
             # Technical Analysis Summary (below charts)
             st.markdown("---")
