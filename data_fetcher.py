@@ -2,8 +2,13 @@ import yfinance as yf
 import pandas as pd
 import streamlit as st
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour (3600 seconds)
 def fetch_stock_data(ticker, period="5y"):
-    """Fetch and clean stock data from Yahoo Finance"""
+    """Fetch and clean stock data from Yahoo Finance
+    
+    Cached to avoid redundant API calls. Data is refreshed every hour.
+    Cache key is based on ticker and period.
+    """
     try:
         data = yf.download(ticker, period=period, progress=False)
         if data.empty:
@@ -64,9 +69,13 @@ def resample_data_to_timeframe(data, timeframe):
         st.error(f"Error resampling data: {str(e)}")
         return data
 
+@st.cache_data(ttl=3600)  # Cache for 1 hour
 def fetch_stock_data_with_timeframe(ticker, timeframe='1D', period='2y'):
     """
     Fetch stock data and resample to specified timeframe
+    
+    Cached to avoid redundant API calls. Data is refreshed every hour.
+    Cache key is based on ticker, timeframe, and period.
     
     Args:
         ticker: Stock symbol
@@ -91,8 +100,12 @@ def validate_ticker(ticker):
         return False
     return ticker.replace('.', '').replace('-', '').isalnum()
 
+@st.cache_data(ttl=300)  # Cache for 5 minutes
 def validate_ticker_exists(ticker):
-    """Validate if ticker actually exists by trying to fetch minimal data"""
+    """Validate if ticker actually exists by trying to fetch minimal data
+    
+    Cached for 5 minutes to avoid repeated validation calls for the same ticker.
+    """
     if not validate_ticker(ticker):
         return False
     
@@ -103,8 +116,12 @@ def validate_ticker_exists(ticker):
     except:
         return False
 
+@st.cache_data(ttl=60)  # Cache for 1 minute (current price changes frequently)
 def get_current_price(ticker):
-    """Get the current/latest price for a stock ticker"""
+    """Get the current/latest price for a stock ticker
+    
+    Cached for 1 minute to balance between fresh data and API efficiency.
+    """
     try:
         # Fetch latest price using yfinance Ticker object
         stock = yf.Ticker(ticker)
@@ -119,8 +136,13 @@ def get_current_price(ticker):
     except:
         return None
 
+@st.cache_data(ttl=60)  # Cache for 1 minute
 def get_watchlist_prices(tickers):
-    """Get current prices for a list of tickers efficiently"""
+    """Get current prices for a list of tickers efficiently
+    
+    Cached for 1 minute to avoid excessive API calls while keeping prices reasonably fresh.
+    Cache key is based on the tuple of tickers.
+    """
     prices = {}
     for ticker in tickers:
         price = get_current_price(ticker)

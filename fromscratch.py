@@ -1,10 +1,20 @@
 import streamlit as st
+import feedparser
+import requests
+import time
+from datetime import datetime
 
 # Import our custom modules
 from data_fetcher import fetch_stock_data_with_timeframe, validate_ticker, validate_ticker_exists, get_watchlist_prices
 from indicators import add_all_indicators
 from chart_builder import create_line_chart_with_indicators, create_candlestick_chart_with_indicators
 from utils import display_technical_summary, display_data_info
+from css import apply_theme_css
+
+# Import new trading features
+from trading_ui import display_price_alerts_section, display_paper_trading_section
+from price_alerts import get_alert_manager
+from realtime_prices import get_price_service
 
 
 # Configure page
@@ -38,281 +48,73 @@ def get_theme_colors(theme="light"):
             'danger': '#dc3545'
         }
 
-def apply_theme_css(theme="light"):
-    """Apply custom CSS styling based on theme"""
+
+
+
+        
+
+@st.cache_data(ttl=600)  # Cache for 10 minutes
+def fetch_stock_news(ticker, max_articles=5):
+    """Fetch stock news from Yahoo Finance RSS feed
     
-    if theme == "dark":
-        # Dark theme CSS
-        st.markdown("""
-        <style>
-        /* Main app background */
-        .stApp {
-            background-color: #0E1117;
-            color: #FAFAFA !important;
-        }
-                            
-        /* Hide Streamlit Main Menu & Toolbar completely */
-        header[data-testid="stHeader"] {
-            display: none !important;
-        }
-
+    Cached for 10 minutes to avoid excessive RSS feed requests.
+    Cache key is based on ticker and max_articles.
+    """
+    try:
+        # Yahoo Finance RSS feed for specific stock
+        url = f"https://finance.yahoo.com/rss/headline?s={ticker}"
         
-        /* Sidebar styling - make it black with white text */
-        .css-1d391kg, 
-        .css-1rs6os,
-        .css-17eq0hr,
-        .css-16huue1,
-        .css-1lcbmhc,
-        .stSidebar,
-        .stSidebar > div,
-        [data-testid="stSidebar"],
-        [data-testid="stSidebar"] > div {
-            background-color: #000000 !important;
-        }
+        # Parse RSS feed
+        feed = feedparser.parse(url)
         
-        /* All sidebar text elements - comprehensive targeting */
-        .css-1d391kg *, 
-        .css-1rs6os *,
-        .css-17eq0hr *,
-        .css-16huue1 *,
-        .css-1lcbmhc *,
-        .stSidebar *,
-        [data-testid="stSidebar"] *,
-        .css-1d391kg .stMarkdown, 
-        .css-1d391kg .stText, 
-        .css-1d391kg p, 
-        .css-1d391kg span, 
-        .css-1d391kg div,
-        .css-1d391kg h1,
-        .css-1d391kg h2,
-        .css-1d391kg h3,
-        .css-1d391kg h4,
-        .css-1d391kg label,
-        .stSidebar .stMarkdown,
-        .stSidebar .stText,
-        .stSidebar p,
-        .stSidebar span,
-        .stSidebar div,
-        .stSidebar h1,
-        .stSidebar h2,
-        .stSidebar h3,
-        .stSidebar h4,
-        .stSidebar label {
-            color: #FFFFFF !important;
-        }
+        news_articles = []
+        for entry in feed.entries[:max_articles]:
+            article = {
+                'title': entry.title,
+                'summary': getattr(entry, 'summary', 'No summary available'),
+                'link': entry.link,
+                'published': getattr(entry, 'published', 'Date not available'),
+                'source': 'Yahoo Finance'
+            }
+            news_articles.append(article)
         
-        /* Sidebar input fields */
-        .css-1d391kg input,
-        .stSidebar input,
-        [data-testid="stSidebar"] input {
-            background-color: #333333 !important;
-            color: #FFFFFF !important;
-            border: 1px solid #555555 !important;
-        }
-        
-        /* Sidebar select boxes */
-        .css-1d391kg .stSelectbox > div > div,
-        .stSidebar .stSelectbox > div > div,
-        [data-testid="stSidebar"] .stSelectbox > div > div {
-            background-color: #333333 !important;
-            color: #FFFFFF !important;
-        }
-        
-        /* Sidebar checkbox labels */
-        .stSidebar .stCheckbox label,
-        .stSidebar .stCheckbox span,
-        [data-testid="stSidebar"] .stCheckbox label,
-        [data-testid="stSidebar"] .stCheckbox span {
-            color: #FFFFFF !important;
-        }
-        
-        /* Sidebar slider labels and text */
-        .stSidebar .stSlider label,
-        .stSidebar .stSlider span,
-        .stSidebar .stSlider div,
-        [data-testid="stSidebar"] .stSlider label,
-        [data-testid="stSidebar"] .stSlider span,
-        [data-testid="stSidebar"] .stSlider div {
-            color: #FFFFFF !important;
-        }
-        
-        /* Metric containers */
-        [data-testid="metric-container"] {
-            background-color: #262730;
-            border: 1px solid #404040;
-            border-radius: 0.5rem;
-            padding: 1rem;
-        }
-        
-        
-        /* Buttons - More specific targeting */
-        .stButton > button,
-        .stButton button,
-        button[data-testid="baseButton-secondary"] {
-            background-color: #000000 !important;
-            color: #FFFFFF !important;
-            border: 1px solid #333333 !important;
-            border-radius: 0.5rem;
-            transition: all 0.3s;
-        }
-
-        .stButton > button:hover,
-        .stButton button:hover,
-        button[data-testid="baseButton-secondary"]:hover {
-            background-color: #1a1a1a !important;
-            color: #FFFFFF !important;
-            transform: translateY(-1px);
-        }
-                    
-        /* Primary buttons */
-        .stButton > button[kind="primary"] {
-            background-color: #00D4AA;
-            color: #0E1117;
-            font-weight: bold;
-        }
-        
-        .stButton > button[kind="primary"]:hover {
-            background-color: #00B894;
-        }
-        
-        /* Secondary buttons (watchlist tickers, etc.) - black with white text */
-        .stButton > button[data-testid*="secondary"] {
-            background-color: #000000 !important;
-            color: #FFFFFF !important;
-            border: 1px solid #333333;
-        }
-        
-        .stButton > button[kind="secondary"]:hover {
-            background-color: #1a1a1a !important;
-            color: #FFFFFF !important;
-            transform: translateY(-1px);
-        }
-        
-        /* Custom containers */
-        .theme-container {
-            background-color: #1E1E1E;
-            padding: 1rem;
-            border-radius: 10px;
-            border: 1px solid #404040;
-            margin: 1rem 0;
-        }
-        
-        /* Watchlist specific styling in dark mode */
-        .theme-container .stMarkdown,
-        .theme-container .stText,
-        .theme-container p,
-        .theme-container span,
-        .theme-container div {
-            color: #FFFFFF !important;
-        }
-        
-        /* Header styling */
-        .dashboard-header {
-            background: linear-gradient(90deg, #FF6B35 0%, #00D4AA 100%);
-            padding: 1.5rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-        
-        .dashboard-header h1 {
-            color: white;
-            margin: 0;
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        </style>
-        """, unsafe_allow_html=True)
+        return news_articles
     
-    else:
-        # Light theme CSS
-        st.markdown("""
-        <style>
-        /* Main app background */
-        .stApp {
-            background-color: #FFFFFF;
-            color: #262730;
-        }
-        
-        /* Sidebar styling */
-        .css-1d391kg {
-            background-color: #F0F2F6;
-        }
-        
-        /* Metric containers */
-        [data-testid="metric-container"] {
-            background-color: #FFFFFF;
-            border: 1px solid #E0E0E0;
-            border-radius: 0.5rem;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        
-        /* Buttons */
-        .stButton > button {
-            background-color: #FF6B35;
-            color: white;
-            border: none;
-            border-radius: 0.5rem;
-            transition: all 0.3s;
-        }
-        
-        .stButton > button:hover {
-            background-color: #E55A2B;
-            transform: translateY(-2px);
-        }
-        
-        /* Primary buttons */
-        .stButton > button[kind="primary"] {
-            background-color: #00D4AA;
-            color: white;
-            font-weight: bold;
-        }
-        
-        .stButton > button[kind="primary"]:hover {
-            background-color: #00B894;
-        }
-        
-        /* Secondary buttons (watchlist tickers, etc.) */
-        .stButton > button[kind="secondary"] {
-            background-color: #E9ECEF;
-            color: #262730 !important;
-            border: 1px solid #CED4DA;
-        }
-        
-        .stButton > button[kind="secondary"]:hover {
-            background-color: #DEE2E6;
-            color: #1C1E21 !important;
-            transform: translateY(-1px);
-        }
-        
-        /* Custom containers */
-        .theme-container {
-            background-color: #F8F9FA;
-            padding: 1rem;
-            border-radius: 10px;
-            border: 1px solid #E0E0E0;
-            margin: 1rem 0;
-        }
-        
-        /* Header styling */
-        .dashboard-header {
-            background: linear-gradient(90deg, #FF6B35 0%, #00D4AA 100%);
-            padding: 1.5rem;
-            border-radius: 10px;
-            margin-bottom: 2rem;
-            text-align: center;
-        }
-        
-        .dashboard-header h1 {
-            color: white;
-            margin: 0;
-            font-weight: 700;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    except Exception as e:
+        st.error(f"Error fetching news: {str(e)}")
+        return []
 
+def display_news_section(ticker):
+    """Display news section for the selected ticker with lazy loading"""
+    st.markdown('<div class="theme-container">', unsafe_allow_html=True)
+    
+    # Use expander for lazy loading - news only fetched when expanded
+    with st.expander(f"Latest News for {ticker}", expanded=False):
+        # Fetch news only when expander is opened
+        with st.spinner(f"Loading latest news for {ticker}..."):
+            news_articles = fetch_stock_news(ticker)
+        
+        if news_articles:
+            for i, article in enumerate(news_articles):
+                st.markdown(f"### {article['title']}")
+                st.write(f"**Source:** {article['source']} | **Published:** {article['published']}")
+                st.write(f"{article['summary']}")
+                st.markdown(f"[Read Full Article]({article['link']})")
+                if i < len(news_articles) - 1:  # Don't add separator after last article
+                    st.markdown("---")
+        else:
+            st.info(f"No recent news found for {ticker}")
+        
+        # Add refresh button
+        st.markdown("")  # Add spacing
+        col1, col2, col3 = st.columns([1, 1, 1])
+        with col2:
+            if st.button("Refresh News", key=f"refresh_news_{ticker}"):
+                # Clear cache for this ticker's news
+                fetch_stock_news.clear()
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def main():
     # Initialize theme in session state
@@ -322,10 +124,10 @@ def main():
     # Apply theme CSS
     apply_theme_css(st.session_state.theme)
     
-    # Custom header with gradient styling
+    # Custom header
     st.markdown("""
     <div class="dashboard-header">
-        <h1>📈 Professional Finance Dashboard</h1>
+        <h1>Professional Finance Dashboard</h1>
     </div>
     """, unsafe_allow_html=True)
     
@@ -333,68 +135,74 @@ def main():
     timeframe_changed = False
     
     # ============================================
+    # CHECK PRICE ALERTS ON STARTUP
+    # ============================================
+    alert_manager = get_alert_manager()
+    triggered_alerts = alert_manager.check_all_alerts()
+    if triggered_alerts:
+        for alert in triggered_alerts:
+            st.toast(f"🔔 {alert.ticker} {alert.alert_type} ${alert.target_price:.2f}", icon="🔔")
+    
+    # ============================================
     # SIDEBAR CONTROLS
     # ============================================
     with st.sidebar:
-        st.header("🎛️ Dashboard Controls")
+        st.header("Dashboard Controls")
         
         # Theme Toggle Section
-        st.subheader("🎨 Theme")
+        st.subheader("Theme")
         col1, col2 = st.columns(2)
         
         with col1:
-            if st.button("🌞 Light", use_container_width=True, 
+            if st.button("Light", use_container_width=True, 
                         type="primary" if st.session_state.theme == 'light' else "secondary",
                         help="Switch to light theme"):
                 st.session_state.theme = 'light'
                 st.rerun()
         
         with col2:
-            if st.button("🌙 Dark", use_container_width=True,
+            if st.button("Dark", use_container_width=True,
                         type="primary" if st.session_state.theme == 'dark' else "secondary",
                         help="Switch to dark theme"):
                 st.session_state.theme = 'dark'
                 st.rerun()
         
         # Theme status indicator with enhanced styling
-        theme_emoji = "🌞" if st.session_state.theme == 'light' else "🌙"
         if st.session_state.theme == 'dark':
-            st.success(f"{theme_emoji} **Active:** {st.session_state.theme.title()} Mode")
+            st.success(f"**Active:** {st.session_state.theme.title()} Mode")
         else:
-            st.info(f"{theme_emoji} **Active:** {st.session_state.theme.title()} Mode")
+            st.info(f"**Active:** {st.session_state.theme.title()} Mode")
         
         st.markdown("---")
         
         # Stock Selection
-        st.subheader("📊 Stock Selection")
-        
+        st.subheader("Stock Selection")
         # Check if a stock was selected from watchlist
         if 'selected_ticker' in st.session_state:
             default_ticker = st.session_state['selected_ticker']
+            # Update the text input value in session state so it reflects immediately
+            st.session_state['ticker_input'] = default_ticker
             # Clear the selection so it doesn't persist
             del st.session_state['selected_ticker']
             timeframe_changed = True  # Trigger data fetch for selected stock
         else:
-            default_ticker = "AAPL"
-        
-        ticker = st.text_input("Stock Ticker", value=default_ticker, help="Enter a valid stock symbol (e.g., AAPL, MSFT, GOOGL)").upper()
-        
+            default_ticker = st.session_state.get('ticker_input', "AAPL")
+        # Use session state for ticker input to ensure immediate update
+        ticker = st.text_input("Stock Ticker", value=default_ticker, key="ticker_input", help="Enter a valid stock symbol (e.g., AAPL, MSFT, GOOGL)").upper()
         if not validate_ticker(ticker):
-            st.error("⚠️ Invalid ticker symbol")
+            st.error("Invalid ticker symbol")
             st.stop()
-        
-        st.success(f"✅ Selected: **{ticker}**")
-        
+        st.success(f"Selected: **{ticker}**")
         # Data Fetch Button (right after ticker selection)
-        if st.button("🔄 **Fetch Data**", type="primary", use_container_width=True):
+        if st.button("Fetch Data", type="primary", use_container_width=True):
             timeframe_changed = True  # Trigger data fetch
         
         # Chart Type Selection  
-        st.subheader("📈 Chart Type")
+        st.subheader("Chart Type")
         chart_type = st.selectbox("Select Chart Style", ["Line Chart", "Candlestick Chart"])
         
         # Trading Timeframe Selection
-        st.subheader("⏰ Timeframe")
+        st.subheader("Timeframe")
         st.write("Select candle interval:")
         
         timeframes = [
@@ -424,11 +232,11 @@ def main():
             selected_timeframe = st.session_state['selected_timeframe']
             selected_timeframe_desc = st.session_state['selected_timeframe_desc']
         
-        st.info(f"📊 **Active:** {selected_timeframe_desc}")
+        st.info(f"**Active:** {selected_timeframe_desc}")
         
         # Display Options (First - choose what to show)
         st.markdown("---")
-        st.subheader("👀 Display Options")
+        st.subheader("Display Options")
         show_ma_short = st.checkbox("Show Short MA", True)
         show_ma_long = st.checkbox("Show Long MA", False)
         show_rsi = st.checkbox("Show RSI", True)
@@ -437,7 +245,7 @@ def main():
         
         # Technical Indicator Parameters (Second - fine-tune the settings)
         st.markdown("---")
-        st.subheader("⚙️ Indicator Settings")
+        st.subheader("Indicator Settings")
         
         # Moving Average periods
         ma_short_period = st.slider("Short MA Period", 5, 50, 20, 5, help="Short-term moving average period")
@@ -449,6 +257,27 @@ def main():
         # Bollinger Bands settings  
         bb_period = st.slider("Bollinger Bands Period", 10, 50, 20, 5, help="Bollinger Bands period")
         bb_std = st.slider("Bollinger Bands Std Dev", 1.0, 3.0, 2.0, 0.1, help="Standard deviation multiplier")
+        
+        # Auto-Refresh Controls
+        st.markdown("---")
+        st.subheader("⚡ Auto-Refresh")
+        auto_refresh = st.checkbox("Enable Auto-Refresh", value=False, key="auto_refresh_enabled", 
+                                   help="Automatically refresh prices and charts")
+        
+        if auto_refresh:
+            refresh_interval = st.select_slider(
+                "Refresh Interval",
+                options=[5, 10, 15, 30, 60],
+                value=15,
+                format_func=lambda x: f"{x} seconds",
+                key="refresh_interval"
+            )
+            
+            # Display last refresh time
+            if 'last_refresh' not in st.session_state:
+                st.session_state['last_refresh'] = datetime.now()
+            
+            st.caption(f"Last refresh: {st.session_state['last_refresh'].strftime('%H:%M:%S')}")
     
 
     # Create main layout: Charts (left) + Watchlist (right)
@@ -461,7 +290,7 @@ def main():
     
     with watchlist_col:
         st.markdown('<div class="theme-container">', unsafe_allow_html=True)
-        st.subheader("📋 Watchlist")
+        st.subheader("Watchlist")
         
         # Initialize watchlist in session state
         if 'watchlist' not in st.session_state:
@@ -473,7 +302,7 @@ def main():
         with col1:
             new_stock = st.text_input("", placeholder="Enter ticker (e.g., NVDA)", label_visibility="collapsed").upper()
         with col2:
-            if st.button("➕", help="Add to watchlist"):
+            if st.button("Add", help="Add to watchlist"):
                 if new_stock:
                     if new_stock in st.session_state['watchlist']:
                         st.warning("Already in watchlist!")
@@ -499,18 +328,18 @@ def main():
         with col_header1:
             st.write("**Your Stocks:**")
         with col_header2:
-            if st.button("🔄", key="refresh_prices", help="Refresh prices"):
+            if st.button("Refresh", key="refresh_prices", help="Refresh prices"):
                 if 'watchlist_prices' in st.session_state:
                     del st.session_state['watchlist_prices']
                 st.rerun()
         
         if st.session_state['watchlist']:
-            # Fetch prices if not cached
-            if 'watchlist_prices' not in st.session_state:
-                with st.spinner("Fetching prices..."):
-                    st.session_state['watchlist_prices'] = get_watchlist_prices(st.session_state['watchlist'])
+            # Use real-time prices for watchlist
+            price_service = get_price_service()
+            prices_data = price_service.get_multiple_prices(st.session_state['watchlist'])
             
-            prices = st.session_state['watchlist_prices']
+            # Convert to simple price dict for compatibility
+            prices = {ticker: data['price'] for ticker, data in prices_data.items()}
             
             for i, stock in enumerate(st.session_state['watchlist']):
                 # Create clean row for each stock with proper alignment
@@ -518,22 +347,31 @@ def main():
                 
                 with ticker_col:
                     # Stock ticker button
-                    if st.button(f"📊 {stock}", key=f"load_{stock}", help=f"Load {stock} chart", 
+                    if st.button(f"{stock}", key=f"load_{stock}", help=f"Load {stock} chart", 
                                 type="secondary", use_container_width=True):
                         st.session_state['selected_ticker'] = stock
                         st.rerun()
                 
                 with price_col:
-                    # Price display - aligned properly
+                    # Price display with change indicator
                     price = prices.get(stock)
                     if price is not None:
-                        st.write(f"${price:.2f}")
+                        # Get full price data for change indicator
+                        price_data = prices_data.get(stock)
+                        if price_data and 'change_percent' in price_data:
+                            change_pct = price_data['change_percent']
+                            color = "green" if change_pct >= 0 else "red"
+                            arrow = "▲" if change_pct >= 0 else "▼"
+                            st.markdown(f"<span style='color: {color};'>${price:.2f} {arrow}</span>", 
+                                      unsafe_allow_html=True)
+                        else:
+                            st.write(f"${price:.2f}")
                     else:
                         st.write("$---.--")
                 
                 with remove_col:
                     # Remove button
-                    if st.button("❌", key=f"remove_{stock}", help=f"Remove {stock}"):
+                    if st.button("Remove", key=f"remove_{stock}", help=f"Remove {stock}"):
                         st.session_state['watchlist'].remove(stock)
                         # Also remove from price cache
                         if 'watchlist_prices' in st.session_state and stock in st.session_state['watchlist_prices']:
@@ -590,7 +428,7 @@ def main():
                 data = fetch_stock_data_with_timeframe(ticker, selected_timeframe, period='2y')
                 
                 if data is None:
-                    st.error(f"❌ No data found for {ticker}")
+                    st.error(f"No data found for {ticker}")
                     # Clear session state
                     for key in ['stock_data', 'current_ticker', 'indicator_params', 'display_options']:
                         if key in st.session_state:
@@ -604,7 +442,7 @@ def main():
                     st.session_state['current_ticker'] = ticker
                     st.session_state['indicator_params'] = indicator_params
                     
-                    st.success(f"✅ Successfully loaded {len(data)} days of data!")
+                    st.success(f"Successfully loaded {len(data)} days of data!")
         
         # Recalculate indicators if parameters changed (but data exists)
         elif params_changed and 'stock_data' in st.session_state:
@@ -622,9 +460,30 @@ def main():
             data = st.session_state['stock_data']
             ticker = st.session_state['current_ticker']
             
+            # Display live price at the top
+            price_service = get_price_service()
+            live_price_data = price_service.get_live_price(ticker)
+            
+            if live_price_data:
+                col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
+                with col1:
+                    st.markdown(f"### {ticker}")
+                with col2:
+                    st.metric("Live Price", f"${live_price_data['price']:.2f}")
+                with col3:
+                    change_color = "green" if live_price_data['change'] >= 0 else "red"
+                    st.metric("Change", f"${live_price_data['change']:.2f}", 
+                             delta=f"{live_price_data['change_percent']:.2f}%")
+                with col4:
+                    st.caption(f"Updated: {live_price_data['timestamp'].strftime('%H:%M:%S')}")
+            else:
+                st.markdown(f"### {ticker}")
+            
+            st.markdown("---")
+            
             # Main chart area (TOP PRIORITY - show charts first)
             st.markdown('<div class="theme-container">', unsafe_allow_html=True)
-            st.write("## 📈 Interactive Charts")
+            st.write("## Interactive Charts")
             
             # Get theme colors for chart styling
             theme_colors = get_theme_colors(st.session_state.theme)
@@ -643,6 +502,7 @@ def main():
                 plot_bgcolor=theme_colors['background'],
                 paper_bgcolor=theme_colors['paper'],
                 font=dict(color=theme_colors['text']),
+                title_font=dict(color=theme_colors['text'], size=20),
                 xaxis=dict(gridcolor=theme_colors['grid']),
                 yaxis=dict(gridcolor=theme_colors['grid'])
             )
@@ -650,7 +510,16 @@ def main():
             st.plotly_chart(fig, use_container_width=True)
             st.markdown('</div>', unsafe_allow_html=True)
             
-            # Technical Analysis Summary (below charts)
+            # News section (below charts, before technical analysis)
+            display_news_section(ticker)
+            
+            # NEW: Price Alerts Section
+            display_price_alerts_section()
+            
+            # NEW: Paper Trading Section (pass current ticker for quick trades)
+            display_paper_trading_section(ticker)
+            
+            # Technical Analysis Summary (below trading sections)
             st.markdown("---")
             display_technical_summary(data, ticker)
             
@@ -658,24 +527,48 @@ def main():
             display_data_info(data)
             
             # Additional options in expandable section
-            with st.expander("🔧 Advanced Options"):
+            with st.expander("Advanced Options"):
                 col1, col2 = st.columns(2)
                 
                 with col1:
-                    if st.button("📥 Download Data as CSV"):
+                    if st.button("Download Data as CSV"):
                         csv = data.to_csv()
                         st.download_button(
-                            label="💾 Download CSV",
+                            label="Download CSV",
                             data=csv,
                             file_name=f"{ticker}_{selected_timeframe_desc}_data.csv",
                             mime="text/csv"
                         )
                 
                 with col2:
-                    if st.checkbox("📋 Show Raw Data"):
+                    if st.checkbox("Show Raw Data"):
                         st.write("**Data Columns:**", list(data.columns))
                         st.write("**RSI14 values (last 5):**", data['RSI14'].tail().tolist() if 'RSI14' in data.columns else "RSI14 column missing!")
                         st.dataframe(data.tail(10))
+    
+    # ============================================
+    # AUTO-REFRESH LOGIC
+    # ============================================
+    if st.session_state.get('auto_refresh_enabled', False):
+        refresh_interval = st.session_state.get('refresh_interval', 15)
+        
+        # Update last refresh time
+        st.session_state['last_refresh'] = datetime.now()
+        
+        # Force cache clear for watchlist prices and alerts
+        if 'watchlist_prices' in st.session_state:
+            del st.session_state['watchlist_prices']
+        
+        # Check alerts on refresh
+        alert_manager = get_alert_manager()
+        triggered_alerts = alert_manager.check_all_alerts()
+        if triggered_alerts:
+            for alert in triggered_alerts:
+                st.toast(f"🔔 {alert.ticker} {alert.alert_type} ${alert.target_price:.2f}", icon="🔔")
+        
+        # Use sleep and rerun to refresh
+        time.sleep(refresh_interval)
+        st.rerun()
 
 
 if __name__ == "__main__":
